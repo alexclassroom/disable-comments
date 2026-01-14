@@ -645,6 +645,21 @@ class Disable_Comments {
 					}
 				}
 			}
+
+			// For DELETE requests, extract comment ID from the route path
+			// The comment ID is only in the URL (e.g., /wp/v2/comments/123), not in request params
+			if (!$comment_type && $request->is_method('DELETE')) {
+				$route_parts = explode('/', $request->get_route());
+				$comment_id = end($route_parts);
+
+				// Ensure we have a numeric comment ID
+				if (is_numeric($comment_id)) {
+					$comment = get_comment((int) $comment_id);
+					if ($comment && isset($comment->comment_type)) {
+						$comment_type = $comment->comment_type;
+					}
+				}
+			}
 		}
 
 		// Check if the comment type is in the allowlist
