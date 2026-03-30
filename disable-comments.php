@@ -1334,6 +1334,11 @@ class Disable_Comments {
 		$nonce = (isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '');
 
 		if (($this->is_CLI && !empty($_args)) || wp_verify_nonce($nonce, 'disable_comments_save_settings')) {
+			$required_cap = $this->is_network_admin() ? 'manage_network_plugins' : 'manage_options';
+			if (!$this->is_CLI && !current_user_can($required_cap)) {
+				wp_send_json_error(['message' => 'Insufficient permissions.'], 403);
+			}
+
 			$formArray = $this->get_form_array_escaped($_args);
 
 			if (!empty($formArray['is_network_admin']) && function_exists('get_sites') && class_exists('WP_Site_Query')) {
@@ -1345,6 +1350,10 @@ class Disable_Comments {
 					// $formArray['disabled_sites'] ids don't include "site_" prefix.
 					if (!empty($formArray['disabled_sites']) && !empty($formArray['disabled_sites']["site_$blog_id"])) {
 						switch_to_blog($blog_id);
+						if (!is_super_admin() && !current_user_can('manage_options')) {
+							restore_current_blog();
+							continue;
+						}
 						$log = $this->delete_comments($_args);
 						restore_current_blog();
 					}
