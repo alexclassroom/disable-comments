@@ -116,9 +116,12 @@ class Disable_Comments {
 	}
 
 	public function is_network_admin() {
-		$sanitized_referer = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
-		if (is_network_admin() || !empty($sanitized_referer) && defined('DOING_AJAX') && DOING_AJAX && is_multisite() && preg_match('#^' . network_admin_url() . '#i', $sanitized_referer)) {
+		if (is_network_admin()) {
 			return true;
+		}
+		if (defined('DOING_AJAX') && DOING_AJAX) {
+			$is_network_admin_param = isset($_REQUEST['is_network_admin']) ? sanitize_text_field(wp_unslash($_REQUEST['is_network_admin'])) : '';
+			return $is_network_admin_param === '1' && current_user_can('manage_network_plugins');
 		}
 		return false;
 	}
