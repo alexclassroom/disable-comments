@@ -1164,6 +1164,9 @@ class Disable_Comments {
 		if (!wp_verify_nonce($nonce, 'disable_comments_save_settings')) {
 			wp_send_json(['data' => [], 'totalNumber' => 0]);
 		}
+		if (!current_user_can('manage_network_plugins') && !current_user_can('manage_options')) {
+			wp_send_json(['data' => [], 'totalNumber' => 0]);
+		}
 
 		$_sub_sites = [];
 		$type = isset($_GET['type']) ? sanitize_text_field(wp_unslash($_GET['type'])) : 'disabled';
