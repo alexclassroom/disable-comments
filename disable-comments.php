@@ -119,9 +119,12 @@ class Disable_Comments {
 		if (is_network_admin()) {
 			return true;
 		}
-		if (defined('DOING_AJAX') && DOING_AJAX) {
-			$is_network_admin_param = isset($_REQUEST['is_network_admin']) ? sanitize_text_field(wp_unslash($_REQUEST['is_network_admin'])) : '';
-			return $is_network_admin_param === '1' && current_user_can('manage_network_plugins');
+		// JS appends is_network_admin=1 as a GET param to the AJAX URL when the
+		// request originates from the network admin panel. Context hint only;
+		// callers must verify capabilities separately.
+		if (defined('DOING_AJAX') && DOING_AJAX && is_multisite()) {
+			$param = isset($_REQUEST['is_network_admin']) ? sanitize_text_field(wp_unslash($_REQUEST['is_network_admin'])) : '';
+			return $param === '1';
 		}
 		return false;
 	}
@@ -1122,7 +1125,7 @@ class Disable_Comments {
 		foreach ($editable_roles as $role => $details) {
 			$roles[] = [
 				"id" => esc_attr($role),
-				"text" => translate_user_role($details['name']),
+				"text" => esc_html(translate_user_role($details['name'])),
 				"selected" => in_array($role, (array) $selected),
 			];
 		}
@@ -1236,7 +1239,7 @@ class Disable_Comments {
 				$this->options = $old_options;
 			}
 
-			$this->options['is_network_admin'] = isset($formArray['is_network_admin']) && $formArray['is_network_admin'] == '1' ? true : false;
+			$this->options['is_network_admin'] = $this->is_network_admin();
 
 			if (!empty($this->options['is_network_admin']) && function_exists('get_sites') && empty($formArray['sitewide_settings'])) {
 				$formArray['disabled_sites'] = isset($formArray['disabled_sites']) ? $formArray['disabled_sites'] : [];
@@ -1266,7 +1269,7 @@ class Disable_Comments {
 				$this->options['extra_post_types'] = array_diff($extra_post_types, array_keys($post_types)); // Make sure we don't double up builtins.
 			}
 
-			if (isset($formArray['sitewide_settings'])) {
+			if ($this->is_network_admin() && isset($formArray['sitewide_settings'])) {
 				update_site_option('disable_comments_sitewide_settings', $formArray['sitewide_settings']);
 			}
 
@@ -1344,7 +1347,7 @@ class Disable_Comments {
 
 			$formArray = $this->get_form_array_escaped($_args);
 
-			if (!empty($formArray['is_network_admin']) && function_exists('get_sites') && class_exists('WP_Site_Query')) {
+			if ($this->is_network_admin() && function_exists('get_sites') && class_exists('WP_Site_Query')) {
 				$sites = get_sites([
 					'number' => 0,
 					'fields' => 'ids',
