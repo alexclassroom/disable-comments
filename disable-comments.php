@@ -61,10 +61,11 @@ class Disable_Comments {
 
 		$this->sitewide_settings = get_site_option('disable_comments_sitewide_settings', false);
 		// Load options.
-		// Use is_network_admin_ajax_context() here (not can_*) because
-		// current_user_can() is unavailable during plugin construction —
-		// pluggable.php hasn't loaded yet. Capability checks happen later
-		// in the AJAX handlers, not here.
+		// Uses is_network_admin_ajax_context() (routing hint, not capability
+		// check) because current_user_can() is unavailable during plugin
+		// construction — pluggable.php hasn't loaded yet. This only controls
+		// which options table is READ (site vs blog) — writes are always
+		// gated by capability checks in the AJAX handlers and settings_page().
 		if ($this->networkactive && ($this->is_network_admin_ajax_context() || $this->sitewide_settings !== '1')) {
 			$this->options = get_site_option('disable_comments_options', array());
 			$this->options['disabled_sites'] = $this->get_disabled_sites();
@@ -119,8 +120,18 @@ class Disable_Comments {
 		add_filter('debug_information', array($this, 'add_site_health_info'));
 	}
 
+	/**
+	 * Routing hint: is this request from the network-admin screen?
+	 *
+	 * During AJAX, WP's is_network_admin() is always false, so the JS
+	 * appends ?is_network_admin=1 to ajaxurl (value set server-side in
+	 * admin_enqueue_scripts via is_network_admin()). The GET param is
+	 * client-supplied and therefore forgeable — never use this method
+	 * alone for authorization. Always pair with can_network_admin_ajax_context()
+	 * or an explicit current_user_can() check.
+	 */
 	private function is_network_admin_ajax_context() {
-		if(!$this->networkactive){
+		if (!$this->networkactive) {
 			return false;
 		}
 		if (is_network_admin()) {
@@ -133,8 +144,15 @@ class Disable_Comments {
 		return false;
 	}
 
+	/**
+	 * Capability-gated network-admin context check.
+	 *
+	 * Returns true only when the request appears to come from the
+	 * network-admin screen AND the current user holds
+	 * manage_network_plugins. Safe for authorization decisions.
+	 */
 	private function can_network_admin_ajax_context() {
-		if($this->is_network_admin_ajax_context() && current_user_can('manage_network_plugins')){
+		if ($this->is_network_admin_ajax_context() && current_user_can('manage_network_plugins')) {
 			return true;
 		}
 
@@ -1147,9 +1165,13 @@ class Disable_Comments {
 	}
 
 	public function settings_page() {
-		// if( isset( $_GET['cancel'] ) && trim( $_GET['cancel'] ) === 'setup' ){
-		// 	$this->update_option('dc_setup_screen_seen', true);
-		// }
+		// Belt-and-suspenders: add_submenu_page already gates on capability,
+		// but verify here too so a direct URL request can never render the page.
+		$required_cap = $this->networkactive && is_network_admin() ? 'manage_network_plugins' : 'manage_options';
+		if (!current_user_can($required_cap)) {
+			wp_die(esc_html__('You do not have sufficient permissions to access this page.', 'disable-comments'), 403);
+		}
+
 		$avatar_status = '-1';
 		if ($this->can_network_admin_ajax_context()) {
 			$show_avatars = [];
